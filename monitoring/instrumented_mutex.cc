@@ -29,6 +29,9 @@ void InstrumentedMutex::Lock() {
       db_mutex_lock_nanos, stats_code_ == DB_MUTEX_WAIT_MICROS,
       stats_for_report(clock_, stats_), stats_code_);
   LockInternal();
+  if (clock_ != nullptr && info_log_ != nullptr) {
+    lock_nanos_ = clock_->NowNanos();
+  }
 }
 
 void InstrumentedMutex::LockInternal() {

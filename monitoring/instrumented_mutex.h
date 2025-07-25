@@ -5,11 +5,13 @@
 
 #pragma once
 
+#include <execinfo.h>
 #include "monitoring/statistics.h"
 #include "port/port.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/system_clock.h"
 #include "rocksdb/thread_status.h"
+#include "logging/logging.h"
 #include "util/stop_watch.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -20,21 +22,46 @@ class InstrumentedCondVar;
 class InstrumentedMutex {
  public:
   explicit InstrumentedMutex(bool adaptive = false)
-      : mutex_(adaptive), stats_(nullptr), clock_(nullptr), stats_code_(0) {}
+      : mutex_(adaptive), stats_(nullptr), clock_(nullptr), stats_code_(0), info_log_(nullptr) {}
 
   explicit InstrumentedMutex(SystemClock* clock, bool adaptive = false)
-      : mutex_(adaptive), stats_(nullptr), clock_(clock), stats_code_(0) {}
+      : mutex_(adaptive), stats_(nullptr), clock_(clock), stats_code_(0), info_log_(nullptr) {}
 
   InstrumentedMutex(Statistics* stats, SystemClock* clock, int stats_code,
-                    bool adaptive = false)
+                    bool adaptive, std::shared_ptr<Logger> info_log)
       : mutex_(adaptive),
         stats_(stats),
         clock_(clock),
-        stats_code_(stats_code) {}
+        stats_code_(stats_code),
+        info_log_(info_log) {}
 
   void Lock();
 
   void Unlock() {
+    if (clock_ != nullptr && info_log_ != nullptr && lock_nanos_ != 0) {
+      // Log if the lock was held for a significant time, 10ms or more
+      uint64_t now = clock_->NowNanos();
+      uint64_t elapsed = now - lock_nanos_;
+      uint64_t ten_ms = 10000000;  // 10 milliseconds in nanoseconds
+      uint64_t one_ms = 1000000;  // 1 milliseconds in nanoseconds
+      if (elapsed >= ten_ms) {
+        // Log backtrace
+        void* callstack[32];
+        int frames = backtrace(callstack, 32);
+        char** strs = backtrace_symbols(callstack, frames);
+        ROCKS_LOG_WARN(info_log_, "Backtrace:");
+        // Join strs using "\n" and output in one log
+        std::string trace;
+        for (int i = 0; i < frames; ++i) {
+          trace += strs[i];
+          trace += "\\n";
+        }
+        ROCKS_LOG_WARN(info_log_, "dbg mutex held for a long time: %" PRIu64 " ms, backtrace: %s",
+                        (elapsed / one_ms), trace.c_str());
+        free(strs);
+      }
+    }
+    lock_nanos_ = 0;
     mutex_.Unlock();
   }
 
@@ -49,6 +76,8 @@ class InstrumentedMutex {
   Statistics* stats_;
   SystemClock* clock_;
   int stats_code_;
+  uint64_t lock_nanos_ = 0;
+  std::shared_ptr<Logger> info_log_;
 };
 
 // RAII wrapper for InstrumentedMutex
