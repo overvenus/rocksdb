@@ -42,9 +42,10 @@ class InstrumentedMutex {
       // Log if the lock was held for a significant time, 10ms or more
       uint64_t now = clock_->NowNanos();
       uint64_t elapsed = now - lock_nanos_;
-      uint64_t ten_ms = 10000000;  // 10 milliseconds in nanoseconds
+      // uint64_t ten_ms = 10000000;  // 10 milliseconds in nanoseconds
+      uint64_t zero_ms = 0;
       uint64_t one_ms = 1000000;  // 1 milliseconds in nanoseconds
-      if (elapsed >= ten_ms) {
+      if (elapsed >= zero_ms) {
         // Log backtrace
         void* callstack[32];
         int frames = backtrace(callstack, 32);
