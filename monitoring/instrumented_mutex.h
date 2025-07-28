@@ -43,9 +43,9 @@ class InstrumentedMutex {
       uint64_t now = clock_->NowNanos();
       uint64_t elapsed = now - lock_nanos_;
       // uint64_t ten_ms = 10000000;  // 10 milliseconds in nanoseconds
-      uint64_t zero_ms = 0;
+      uint64_t two_ms = 2000000;  // 2 milliseconds in nanoseconds
       uint64_t one_ms = 1000000;  // 1 milliseconds in nanoseconds
-      if (elapsed >= zero_ms) {
+      if (elapsed >= two_ms) {
         // Log backtrace
         void* callstack[32];
         int frames = backtrace(callstack, 32);
